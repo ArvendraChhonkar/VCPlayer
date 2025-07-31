@@ -1,4 +1,4 @@
-# 🎞️ MyPlayer – C++ Video Player with SDL2, FFmpeg, and ImGui
+# 🎞️ VCPlayer – C++ Video Player with SDL2, FFmpeg, and ImGui
 
 A lightweight, modular, and modern video player built using C++17, SDL2, FFmpeg, and Dear ImGui.  
 It features a custom ImGui-based interface and includes file browsing and volume control with simple buttons.
