@@ -1,0 +1,205 @@
+#include "VideoPlayer.h"
+#include <iostream>
+
+bool VideoPlayer::load(const std::string& filepath, SDL_Renderer* renderer){
+    cleanup();
+
+    // Open input file
+    if (avformat_open_input(&fmtCtx, filepath.c_str(), nullptr, nullptr) != 0) {
+        std::cerr << "Failed to open input file\n";
+        return false;
+    }
+    if (avformat_find_stream_info(fmtCtx, nullptr) < 0) {
+        std::cerr << "Failed to find stream info\n";
+        return false;
+    }
+
+    videoStreamIndex = -1;
+    for (unsigned i = 0; i < fmtCtx->nb_streams; i++) {
+        if (fmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStreamIndex = i;
+            break;
+        }
+    }
+    if (videoStreamIndex == -1) {
+        std::cerr << "No video stream found\n";
+        return false;
+    }
+
+    AVCodecParameters* codecPar = fmtCtx->streams[videoStreamIndex]->codecpar;
+    const AVCodec* codec = avcodec_find_decoder(codecPar->codec_id);
+    if (!codec) {
+        std::cerr << "Decoder not found\n";
+        return false;
+    }
+    CodecCtx = avcodec_alloc_context3(codec);
+    if (!CodecCtx) return false;
+    if (avcodec_parameters_to_context(CodecCtx, codecPar) < 0) return false;
+    if (avcodec_open2(CodecCtx, codec, nullptr) < 0) return false;
+
+    width = CodecCtx->width;
+    height = CodecCtx->height;
+
+    swsCtx = sws_getContext(
+        width, height, CodecCtx->pix_fmt,
+        width, height, AV_PIX_FMT_RGB24,
+        SWS_BILINEAR, nullptr, nullptr, nullptr
+    );
+    frame = av_frame_alloc();
+    rgbFrame = av_frame_alloc();
+    packet = av_packet_alloc();
+
+    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
+    uint8_t* buffer = (uint8_t*)av_malloc(numBytes);
+
+    av_image_fill_arrays(rgbFrame->data, rgbFrame->linesize, buffer,
+                        AV_PIX_FMT_RGB24, width, height, 1);
+
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24,
+                                SDL_TEXTUREACCESS_STREAMING, width, height);
+
+    frameReady = false;
+    isPaused = false;
+    currentPts = 0.0;
+    seekTargetTime = -1.0f;
+
+    return true;
+}
+
+void VideoPlayer::decodeNextFrame() {
+    frameReady = false;
+
+    while (true) {
+        if (av_read_frame(fmtCtx, packet) < 0) {
+            // End of stream or error
+            return;
+        }
+
+        if (packet->stream_index == videoStreamIndex) {
+            avcodec_send_packet(CodecCtx, packet);
+            // We may have to call receive_frame multiple times for each send_packet, but for steady playback this is fine.
+            if (avcodec_receive_frame(CodecCtx, frame) == 0) {
+                float pts = frame->pts * av_q2d(fmtCtx->streams[videoStreamIndex]->time_base);
+                currentPts = pts;
+
+                // If we're seeking, skip frames until we reach the sought time
+                if (seekTargetTime >= 0.0f) {
+                    if (pts < seekTargetTime) {
+                        // discard this frame
+                        av_packet_unref(packet);
+                        continue;
+                    } else {
+                        // reached/past target, stop skipping
+                        seekTargetTime = -1.0f;
+                    }
+                }
+
+                // Convert and upload texture
+                sws_scale(
+                    swsCtx, frame->data, frame->linesize, 0, height,
+                    rgbFrame->data, rgbFrame->linesize
+                );
+                SDL_UpdateTexture(texture, nullptr, rgbFrame->data[0], rgbFrame->linesize[0]);
+                frameReady = true;
+                av_packet_unref(packet);
+                return;
+            }
+        }
+        av_packet_unref(packet);
+    }
+}
+
+void VideoPlayer::renderFrame(SDL_Renderer* renderer) {
+    if (isPaused) {
+        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+        return;
+    }
+    if (!frameReady) decodeNextFrame();
+    SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+    frameReady = false;
+}
+
+void VideoPlayer::seek(float seconds) {
+    if (!fmtCtx || videoStreamIndex < 0) return;
+
+    AVStream* stream = fmtCtx->streams[videoStreamIndex];
+
+    float newTime = getcurrentTime() + seconds;
+    if (newTime < 0) newTime = 0;
+    float duration = getDuration();
+    if (newTime > duration) newTime = duration - 0.01f; // just before end
+
+    // Convert seconds to stream time_base
+    int64_t targetTimestamp = av_rescale_q(
+        static_cast<int64_t>(newTime * AV_TIME_BASE),
+        AV_TIME_BASE_Q, stream->time_base
+    );
+
+    av_seek_frame(fmtCtx, videoStreamIndex, targetTimestamp, AVSEEK_FLAG_BACKWARD);
+    avcodec_flush_buffers(CodecCtx);
+
+    seekTargetTime = newTime;
+    frameReady = false;
+}
+
+void VideoPlayer::seekTo(float time) {
+    if (!fmtCtx || videoStreamIndex < 0) return;
+
+    AVStream* stream = fmtCtx->streams[videoStreamIndex];
+    float seekTime = time;
+    if (seekTime < 0) seekTime = 0;
+    float duration = getDuration();
+    if (seekTime > duration) seekTime = duration - 0.01f;
+
+    int64_t targetTimestamp = av_rescale_q(
+        static_cast<int64_t>(seekTime * AV_TIME_BASE),
+        AV_TIME_BASE_Q, stream->time_base
+    );
+
+    av_seek_frame(fmtCtx, videoStreamIndex, targetTimestamp, AVSEEK_FLAG_BACKWARD);
+    avcodec_flush_buffers(CodecCtx);
+
+    seekTargetTime = seekTime;
+    frameReady = false;
+}
+
+float VideoPlayer::getcurrentTime(){
+    return static_cast<float>(currentPts);
+}
+
+float VideoPlayer::getDuration(){
+    if (!fmtCtx || fmtCtx->duration == AV_NOPTS_VALUE) return 0.0f;
+    return static_cast<float>(fmtCtx->duration) / AV_TIME_BASE;
+}
+
+void VideoPlayer::togglePause() {
+    isPaused = !isPaused;
+}
+bool VideoPlayer::getPauseState() {
+    return isPaused;
+}
+
+void VideoPlayer::cleanup() {
+    if (packet) av_packet_free(&packet);
+    if (frame) av_frame_free(&frame);
+    if (rgbFrame) {
+        av_free(rgbFrame->data[0]); // free manually allocated buffer
+        av_frame_free(&rgbFrame);
+    }
+    if (texture) {
+        SDL_DestroyTexture(texture);
+        texture = nullptr;
+    }
+    if (CodecCtx) avcodec_free_context(&CodecCtx);
+    if (fmtCtx) avformat_close_input(&fmtCtx);
+    if (swsCtx) sws_freeContext(swsCtx);
+
+    packet = nullptr;
+    frame = nullptr;
+    rgbFrame = nullptr;
+    CodecCtx = nullptr;
+    fmtCtx = nullptr;
+    swsCtx = nullptr;
+    frameReady = false;
+    seekTargetTime = -1.0f;
+}

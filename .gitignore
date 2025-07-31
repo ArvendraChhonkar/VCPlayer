@@ -16,6 +16,7 @@
 
 # Debugger Files
 *.pdb
+*.dwo
 
 # Compiled Dynamic libraries
 *.so
@@ -37,5 +38,44 @@
 *.out
 *.app
 
-# debug information files
-*.dwo
+# Build directories
+build/
+bin/
+debug/
+release/
+cmake-build-*/ # For CLion/CMake generated build folders
+
+# Visual Studio
+.vs/
+*.VC.db
+*.VC.opendb
+*.sdf
+*.suo
+*.user
+*.ipch
+*.aps
+*.ncb
+*.opensdf
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+build/
+
+# VS Code
+.vscode/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# MacOS specific
+.DS_Store
+
+# FFmpeg/SDL (if you've copied their binaries into your project, exclude them!)
+# If you are linking to system-installed FFmpeg/SDL, you don't need these lines.
+# lib/
+# include/
