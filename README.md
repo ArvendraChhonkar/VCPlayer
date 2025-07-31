@@ -49,10 +49,12 @@ cmake ..
 
 # Build
 make
+```
+
 🔧 Make sure SDL2 and FFmpeg development libraries are installed on your system.
 
 📁 Folder Structure
-bash
+```bash
 Copy
 Edit
 MyPlayer/
@@ -64,7 +66,7 @@ MyPlayer/
 ├── main.cpp                  # Entry point
 ├── CMakeLists.txt
 └── README.md
-
+```
 🔊 Volume Control
 The video player now supports basic volume control via ImGui buttons:
 
@@ -93,7 +95,8 @@ Or place a sample test video (like arvv.mp4) in the root folder.
 
 🧑‍💻 Author
 Arvendra Chhonkar
-GitHub: ArvendraChhonkar
+
+GitHub: [ArvendraChhonkar](https://github.com/ArvendraChhonkar)
 
 📜 License
 MIT License – feel free to modify and distribute.
