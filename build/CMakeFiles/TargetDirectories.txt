@@ -1,0 +1,3 @@
+/home/aaki/Documents/MYvideo/VideoPlayer/build/CMakeFiles/MyPlayer.dir
+/home/aaki/Documents/MYvideo/VideoPlayer/build/CMakeFiles/edit_cache.dir
+/home/aaki/Documents/MYvideo/VideoPlayer/build/CMakeFiles/rebuild_cache.dir
