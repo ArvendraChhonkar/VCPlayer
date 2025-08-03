@@ -2,7 +2,7 @@
 #include <string>
 #include <SDL2/SDL.h>
 #include "VideoPlayer.h"
-
+#include <ctime>   
 
 
 class App{
