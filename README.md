@@ -200,6 +200,16 @@ make
 
 ---
 
+## UI :->>
+<img width="849" height="698" alt="image" src="https://github.com/user-attachments/assets/cc3effa5-1eb3-4040-8e0c-e94c71e30702" />
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/b01d41be-2ea3-4c2d-883e-0c9db2daeabc" />
+
+
+
+
+
+
+
 ## 👤 Author
 
 **Arvendra Chhonkar**  
